@@ -1,48 +1,53 @@
-import React, { useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 import { notify } from './NeonNotification';
 import playSound from '../lib/sounds';
+// Importamos el cliente de supabase (asegúrate de que la ruta sea correcta)
+import { supabase } from '../lib/supabase'; 
 
 export function SystemAlertListener() {
   const { user } = useAuthStore();
 
   useEffect(() => {
+    // Solo activamos la escucha si hay un usuario autenticado
     if (!user) return;
 
-    // Listen for GLOBAL alerts, targeted USER alerts, or targeted GROUP alerts
-    const q = query(
-      collection(db, 'system_alerts'),
-      orderBy('timestamp', 'desc'),
-      limit(5)
-    );
+    // 1. Configuración del canal de tiempo real
+    const channel = supabase
+      .channel('system_alerts_changes') // Nombre del canal
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT', // Escuchamos solo nuevas alertas
+          schema: 'public',
+          table: 'system_alerts',
+        },
+        (payload) => {
+          const newAlert = payload.new;
 
-    const unsub = onSnapshot(q, (snap) => {
-      snap.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const alert = change.doc.data();
+          // 2. Lógica de filtrado (Targeting)
+          // Verificamos si la alerta es Global, para este usuario específico o su grupo
           const isTargeted = 
-            alert.targetType === 'GLOBAL' || 
-            (alert.targetType === 'USER' && alert.targetId === user.uid) ||
-            (alert.targetType === 'GROUP' && user.groupIds?.includes(alert.targetId));
+            newAlert.target_type === 'GLOBAL' || 
+            (newAlert.target_type === 'USER' && newAlert.target_id === user.id) ||
+            (newAlert.target_type === 'GROUP' && user.groupIds?.includes(newAlert.target_id));
 
-          const alreadyRead = alert.readBy?.includes(user.uid);
-
-          if (isTargeted && !alreadyRead) {
-            // Show notification
-            notify(alert.message, 'warning');
+          if (isTargeted) {
+            // 3. Mostrar notificación y sonido
+            notify(newAlert.message, 'warning');
             playSound.notification();
-
-            // DO NOT update the global alert document with readBy here
-            // This causes a chain reaction where every user's update triggers a new snapshot for everyone
-            // impacting quota quadratically.
           }
         }
-      });
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'system_alerts'));
+      )
+      .subscribe();
 
-    return () => unsub();
+    // 4. Limpieza al desmontar el componente
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
+  return null;
+}
   return null;
 }
