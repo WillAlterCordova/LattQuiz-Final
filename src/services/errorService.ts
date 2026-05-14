@@ -1,8 +1,21 @@
 import { notify } from '../components/NeonNotification';
-import { OperationType, FirestoreErrorInfo } from '../types/errors';
-import { db, auth } from '../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { supabase } from '../lib/supabase';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: any;
+}
 
 export enum ErrorCategory {
   NETWORK = 'NETWORK',
@@ -80,71 +93,21 @@ class ErrorService {
       displayMessage = error.data.message;
       category = error.data.category;
     }
-    // Handle Firestore Errors (JSON string or raw objects)
-    else if (error && (this.isFirestoreError(error.message) || (error.code && typeof error.code === 'string' && error.code.includes('/')))) {
-      try {
-        let info: FirestoreErrorInfo;
-        if (this.isFirestoreError(error.message)) {
-          info = JSON.parse(error.message) as FirestoreErrorInfo;
-        } else {
-          // Map raw firebase error to our info structure
-          info = {
-            error: error.message || error.code || 'Unknown Firestore Error',
-            operationType: OperationType.WRITE, // Default to write if unknown
-            path: null,
-            authInfo: {}
-          };
-        }
-        const details = this.getFriendlyFirestoreDetails(info);
-        displayMessage = details.message;
-        recommendation = details.recommendation;
-        title = details.title;
-        category = ErrorCategory.DATABASE;
-        technical = `Firestore [${info.operationType}] ${info.path || ''}: ${info.error}`;
-      } catch {
-        displayMessage = "Error de sincronización con la base de datos.";
-        title = "Error de Datos";
-      }
-    }
-    // Handle raw Firebase Auth Errors / Other SDK errors with 'code'
-    else if (error && error.code && typeof error.code === 'string') {
+    // Handle Database Errors (Supabase)
+    else if (error && (error.code || error.message?.includes('supabase') || error.message?.includes('Postgres'))) {
       const code = error.code;
-      technical = `SDK Code: ${code} | Msg: ${error.message || 'N/A'}`;
-      if (code.startsWith('auth/')) {
-        title = "Error de Autenticación";
-        category = ErrorCategory.AUTH;
-        if (code === 'auth/network-request-failed') {
-          displayMessage = "Fallo de conexión en la autenticación.";
-          recommendation = "Revisa tu internet e intenta loguear de nuevo.";
-        } else if (code === 'auth/user-disabled') {
-          displayMessage = "Tu cuenta ha sido desactivada.";
-          recommendation = "Contacta con el administrador del sistema.";
-        } else {
-          displayMessage = `Intento de acceso rechazado (${code}).`;
-          recommendation = "Verifica tus credenciales e intenta de nuevo.";
-        }
-      } else if (code === 'permission-denied') {
-        title = "Acceso Denegado";
+      technical = `Postgres Error [${code}]: ${error.message}`;
+      category = ErrorCategory.DATABASE;
+      title = "Error de Datos";
+      
+      if (code === '42501') { // PostgreSQL Permission Denied
         displayMessage = "No tienes permisos suficientes para esta operación.";
-        recommendation = "Si crees que es un error, intenta cerrar sesión y volver a entrar.";
-        category = ErrorCategory.DATABASE;
-      } else if (code === 'resource-exhausted') {
-        title = "Operación Detenida por Cuota";
-        displayMessage = "Se ha alcanzado el límite de procesamiento permitido en Google Cloud.";
-        recommendation = `Para usuarios en PLAN BLAZE:\n` +
-                         `⚠️ El culpable suele ser un "TOPE DE PRESUPUESTO" (Spending Limit) en Google Billing.\n` +
-                         `1. Ve a console.cloud.google.com -> Billing -> Budgets & alerts.\n` +
-                         `2. Revisa si tienes un tope mensual que se ha alcanzado.\n\n` +
-                         `Para usuarios en PLAN SPARK (Gratis):\n` +
-                         `Has superado las 50,000 lecturas diarias gratuitas. El sistema volverá a la normalidad mañana a las 00:00 (PST).`;
-        category = ErrorCategory.QUOTA;
-        
-        // Signal quota exhaustion to the app
-        sessionStorage.setItem('QUOTA_EXHAUSTED', 'true');
-        window.dispatchEvent(new Event('quota_exceeded'));
+        recommendation = "Verifica tu rol o contacta al administrador.";
+      } else if (code === '23505') { // Unique constraint
+        displayMessage = "Este registro ya existe (duplicado).";
+        recommendation = "Intenta con un identificador diferente.";
       } else {
-        displayMessage = error.message || code;
-        category = ErrorCategory.UNKNOWN;
+        displayMessage = error.message || "Error de sincronización con la base de datos.";
       }
     }
     // Handle generic Error objects
@@ -179,8 +142,7 @@ class ErrorService {
 
     console.groupEnd();
     
-    // Log to firestore for admin diagnostics
-    // CRITICAL: Skip if it is a quota error to save writes and avoid infinite loops
+    // Log to Supabase for admin diagnostics
     if (!displayMessage.toLowerCase().includes('quota') && !technical.toLowerCase().includes('resource-exhausted')) {
       this.reportError({
         message: displayMessage,
@@ -196,18 +158,22 @@ class ErrorService {
 
   private async reportError(data: any) {
     try {
-      if (auth.currentUser) {
-        await addDoc(collection(db, 'system_errors'), {
-          ...data,
-          userId: auth.currentUser?.uid,
-          timestamp: Date.now(),
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('system_errors').insert({
+          message: data.message,
+          category: data.category,
+          context: data.context || '',
+          technical: data.technical || '',
+          stack: data.stack || '',
+          user_id: user.id,
           url: window.location.href,
           resolved: false,
           severity: data.category === ErrorCategory.DATABASE ? 'HIGH' : 'LOW'
         });
       }
     } catch (e) {
-      console.warn('Could not report error to firestore:', e);
+      console.warn('Could not report error to Supabase:', e);
     }
   }
 
@@ -292,11 +258,9 @@ class ErrorService {
       return {
         title: isQuota ? "IA Saturada" : "Falla de IA",
         message: isQuota 
-          ? "El motor de IA (Gemini 1.5 Flash) ha alcanzado su límite de peticiones por minuto."
+          ? "El motor de IA ha alcanzado su límite de peticiones."
           : "El generador de misiones no pudo procesar tu solicitud.",
-        recommendation: isQuota
-          ? `Verifica en Google Cloud [Proyecto: ${firebaseConfig.projectId}] que la cuota de 'Generative Language API' (Gemini 1.5 Flash) esté por encima de 15 RPM. Si ya es 400, espera 15 segundos.`
-          : "Prueba con un prompt diferente o reduce la complejidad de la misión."
+        recommendation: "Espera unos segundos e intenta de nuevo."
       };
     }
     return {
