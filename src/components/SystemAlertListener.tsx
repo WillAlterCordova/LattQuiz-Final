@@ -10,6 +10,7 @@ export function SystemAlertListener() {
   useEffect(() => {
     if (!user) return;
 
+    // Conexión Realtime con Supabase
     const channel = supabase
       .channel('system_alerts_realtime')
       .on(
@@ -22,6 +23,7 @@ export function SystemAlertListener() {
         (payload) => {
           const alert = payload.new;
           
+          // Lógica de filtrado para tus estudiantes o mensajes globales
           const isTargeted = 
             alert.target_type === 'GLOBAL' || 
             (alert.target_type === 'USER' && alert.target_id === user.id);
