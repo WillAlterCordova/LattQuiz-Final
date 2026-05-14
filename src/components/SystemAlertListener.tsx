@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 import { notify } from './NeonNotification';
 import playSound from '../lib/sounds';
-import { supabase } from '../lib/supabase'; // Asegúrate de que este archivo exista en src/lib/
+import { supabase } from '../lib/supabase'; // Asegúrate de que este archivo exista
 
 export function SystemAlertListener() {
   const { user } = useAuthStore();
@@ -10,7 +10,7 @@ export function SystemAlertListener() {
   useEffect(() => {
     if (!user) return;
 
-    // Escucha de alertas en tiempo real con Supabase
+    // Configuración de Realtime para Supabase
     const channel = supabase
       .channel('system_alerts_realtime')
       .on(
@@ -22,8 +22,7 @@ export function SystemAlertListener() {
         },
         (payload) => {
           const alert = payload.new;
-          
-          // Filtrado básico de destinatarios
+          // Ajusta target_type y target_id según tus columnas en Supabase
           const isTargeted = 
             alert.target_type === 'GLOBAL' || 
             (alert.target_type === 'USER' && alert.target_id === user.id);
