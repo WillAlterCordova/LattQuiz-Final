@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 import { notify } from './NeonNotification';
 import playSound from '../lib/sounds';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase'; // Asegúrate de que este archivo exista en src/lib/
 
 export function SystemAlertListener() {
   const { user } = useAuthStore();
@@ -10,7 +10,7 @@ export function SystemAlertListener() {
   useEffect(() => {
     if (!user) return;
 
-    // Suscribirse a cambios en tiempo real en la tabla system_alerts
+    // Escucha de alertas en tiempo real con Supabase
     const channel = supabase
       .channel('system_alerts_realtime')
       .on(
@@ -21,16 +21,15 @@ export function SystemAlertListener() {
           table: 'system_alerts',
         },
         (payload) => {
-          const newAlert = payload.new;
-
-          // Lógica de filtrado: Global, por Usuario o por Grupo
+          const alert = payload.new;
+          
+          // Filtrado básico de destinatarios
           const isTargeted = 
-            newAlert.target_type === 'GLOBAL' || 
-            (newAlert.target_type === 'USER' && newAlert.target_id === user.id) ||
-            (newAlert.target_type === 'GROUP' && user.groupIds?.includes(newAlert.target_id));
+            alert.target_type === 'GLOBAL' || 
+            (alert.target_type === 'USER' && alert.target_id === user.id);
 
           if (isTargeted) {
-            notify(newAlert.message, 'warning');
+            notify(alert.message, 'warning');
             playSound.notification();
           }
         }
