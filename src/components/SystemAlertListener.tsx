@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuthStore } from '../store/auth';
 import { notify } from './NeonNotification';
