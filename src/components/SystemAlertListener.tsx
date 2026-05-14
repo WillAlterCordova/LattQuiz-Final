@@ -21,6 +21,7 @@ export function SystemAlertListener() {
         },
         (payload) => {
           const alert = payload.new;
+          
           const isTargeted = 
             alert.target_type === 'GLOBAL' || 
             (alert.target_type === 'USER' && alert.target_id === user.id);
