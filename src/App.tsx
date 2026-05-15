@@ -69,11 +69,14 @@ function PrivateRoute({ children, allowedRoles }: { children: React.ReactNode, a
   return <>{children}</>;
 }
 
+// 🛠️ CORRECCIÓN AQUÍ: Adaptado por completo a la estructura de Supabase (user.id en lugar de user.uid)
 function UserPresence() {
   const { user } = useAuthStore();
   
   useEffect(() => {
-    if (!user?.uid) return;
+    // Supabase almacena el identificador único en '.id', no en '.uid'
+    const userId = user?.id || user?.uid; 
+    if (!userId) return;
 
     const updatePresence = async () => {
       if (document.visibilityState !== 'visible') return;
@@ -81,14 +84,14 @@ function UserPresence() {
         await supabase
           .from('profiles')
           .update({ last_seen_at: new Date().toISOString() })
-          .eq('id', user.uid);
+          .eq('id', userId);
       } catch (e) {}
     };
 
     updatePresence();
-    const interval = setInterval(updatePresence, 600000); // 10 minutes
+    const interval = setInterval(updatePresence, 600000); // 10 minutos
     return () => clearInterval(interval);
-  }, [user?.uid]);
+  }, [user]);
 
   return null;
 }
@@ -240,6 +243,7 @@ export default function App() {
             }, (payload) => {
               const updatedData = payload.new;
               const mappedProfile = {
+                id: updatedData.id, // Se añadió consistencia con Supabase
                 uid: updatedData.id,
                 email: updatedData.email,
                 role: updatedData.role,
