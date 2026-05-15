@@ -191,9 +191,6 @@ export default function RequestAccessPage() {
                       placeholder="Para recibir notificaciones (opcional)"
                       className="bg-black/40 border-white/10 italic font-bold h-12 focus:border-neon-blue transition-all" 
                     />
-                    <p className="text-[8px] text-muted-foreground uppercase font-bold tracking-widest leading-relaxed mt-1">
-                      No es obligatorio. Usarás tu Matrícula para entrar al sistema.
-                    </p>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-6">
@@ -246,12 +243,9 @@ export default function RequestAccessPage() {
                         required 
                         value={formData.subjectId}
                         onChange={e => setFormData({...formData, subjectId: e.target.value})}
-                        disabled={loading && subjects.length === 0}
-                        className="flex h-12 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm focus:ring-1 focus:ring-neon-blue outline-none transition-all font-bold uppercase italic disabled:opacity-30"
+                        className="flex h-12 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm focus:ring-1 focus:ring-neon-blue outline-none transition-all font-bold uppercase italic"
                       >
-                        <option value="">
-                          {loading ? 'Sincronizando con Nexus...' : (subjects.length === 0 ? 'Sin Materias Disponibles' : 'Selecciona Materia')}
-                        </option>
+                        <option value="">Selecciona Materia</option>
                         {subjects.map(s => <option key={s.id} value={s.id} className="bg-black">{s.name}</option>)}
                       </select>
                     </div>
@@ -261,10 +255,9 @@ export default function RequestAccessPage() {
                         required 
                         value={formData.groupId}
                         onChange={e => setFormData({...formData, groupId: e.target.value})}
-                        disabled={loading && groups.length === 0}
-                        className="flex h-12 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm focus:ring-1 focus:ring-neon-blue outline-none transition-all font-bold uppercase italic disabled:opacity-30"
+                        className="flex h-12 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm focus:ring-1 focus:ring-neon-blue outline-none transition-all font-bold uppercase italic"
                       >
-                        <option value="">{loading ? 'Sincronizando...' : (groups.length === 0 ? 'Sin Grupos' : 'Selecciona Grupo')}</option>
+                        <option value="">Selecciona Grupo</option>
                         {groups.map(g => <option key={g.id} value={g.id} className="bg-black">{g.name}</option>)}
                       </select>
                     </div>
@@ -276,11 +269,7 @@ export default function RequestAccessPage() {
                       disabled={loading} 
                       className="w-full bg-neon-blue text-black font-black uppercase italic h-14 shadow-[0_0_25px_rgba(0,243,255,0.3)] hover:shadow-[0_0_35px_rgba(0,243,255,0.5)] transition-all flex items-center justify-center gap-3"
                     >
-                       {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                         <>
-                           <Send className="w-5 h-5" /> EXPEDIR SOLICITUD AL DOCENTE
-                         </>
-                       )}
+                       {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'EXPEDIR SOLICITUD AL DOCENTE'}
                     </Button>
                   </div>
                 </motion.form>
