@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, ArrowLeft, Send, Sparkles, User, GraduationCap, ShieldCheck, FileText } from 'lucide-react';
 import { useSubjectsGroupsStore } from '../store/subjectsGroups';
-import { supabase } from '../lib/supabase'; // Importación de Supabase añadida
+import { supabase } from '../lib/supabase';
 import { errorService } from '../services/errorService';
 
 export default function RequestAccessPage() {
@@ -42,7 +42,6 @@ export default function RequestAccessPage() {
       }
 
       if (sanitizedMatricula) {
-        // 1. Validar si ya existe el usuario registrado en Supabase (Tabla: 'users')
         const { data: userCheck, error: userError } = await supabase
           .from('users')
           .select('matricula')
@@ -53,7 +52,6 @@ export default function RequestAccessPage() {
           throw new Error('Ya existe un usuario registrado con esta matrícula.');
         }
         
-        // 2. Validar si ya existe una solicitud pendiente en Supabase (Tabla: 'requests')
         const { data: reqCheck, error: reqError } = await supabase
           .from('requests')
           .select('matricula, status')
@@ -66,21 +64,19 @@ export default function RequestAccessPage() {
         }
       }
 
-      // Preparar la estructura de datos sanitizada mapeando las columnas
       const sanitizedData = {
         name: formData.name.trim().toUpperCase(),
-        last_name: formData.lastName.trim().toUpperCase(), // Ajustado a snake_case para Postgres estándar
-        mother_last_name: formData.motherLastName.trim().toUpperCase(), // Ajustado a snake_case
+        last_name: formData.lastName.trim().toUpperCase(),
+        mother_last_name: formData.motherLastName.trim().toUpperCase(),
         matricula: sanitizedMatricula || null,
-        subject_id: formData.subjectId || null, // Ajustado a snake_case
-        group_id: formData.groupId || null, // Ajustado a snake_case
+        subject_id: formData.subjectId || null,
+        group_id: formData.groupId || null,
         role: formData.role,
         email: sanitizedEmail || null,
         status: 'PENDING',
-        created_at: new Date().toISOString() // Estándar timestamp de Supabase/PostgreSQL
+        created_at: new Date().toISOString()
       };
       
-      // 3. Insertar la solicitud en la tabla 'requests' de Supabase
       const { error: insertError } = await supabase
         .from('requests')
         .insert([sanitizedData]);
@@ -90,14 +86,13 @@ export default function RequestAccessPage() {
       setSubmitted(true);
     } catch (error: any) {
       errorService.handle(error, 'Request Access');
-    } compression: finally {
+    } finally {
       setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen cosmic-grid flex flex-col items-center justify-center p-4">
-      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -259,20 +254,6 @@ export default function RequestAccessPage() {
                         </option>
                         {subjects.map(s => <option key={s.id} value={s.id} className="bg-black">{s.name}</option>)}
                       </select>
-                      {subjects.length === 0 && !loading && (
-                        <div className="flex items-center justify-between px-1 mt-1">
-                          <p className="text-[8px] text-amber-500 uppercase font-black">
-                            No se detectaron materias.
-                          </p>
-                          <button 
-                            type="button" 
-                            onClick={init}
-                            className="text-[8px] text-neon-blue uppercase font-black hover:underline"
-                          >
-                            Reintentar
-                          </button>
-                        </div>
-                      )}
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-widest ml-1 opacity-50">Identificador de Grupo</label>
@@ -301,9 +282,6 @@ export default function RequestAccessPage() {
                          </>
                        )}
                     </Button>
-                    <p className="text-[8px] text-muted-foreground text-center uppercase tracking-widest font-black opacity-30">
-                      Verificando integridad de datos en el Nexus Central...
-                    </p>
                   </div>
                 </motion.form>
               )}
