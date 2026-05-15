@@ -4,10 +4,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, ArrowLeft, Send, Sparkles, User, GraduationCap, ShieldCheck, FileText, ChevronRight } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, Sparkles, User, GraduationCap, ShieldCheck, FileText } from 'lucide-react';
 import { useSubjectsGroupsStore } from '../store/subjectsGroups';
-import { db } from '../lib/firebase';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { supabase } from '../lib/supabase'; // Importación de Supabase añadida
 import { errorService } from '../services/errorService';
 
 export default function RequestAccessPage() {
@@ -15,7 +14,6 @@ export default function RequestAccessPage() {
   const { subjects, groups, init } = useSubjectsGroupsStore();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     init();
@@ -35,7 +33,6 @@ export default function RequestAccessPage() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setLoading(true);
-    setErrorMsg(null);
     try {
       const sanitizedMatricula = formData.matricula.trim().toUpperCase();
       const sanitizedEmail = (formData.email || '').trim().toLowerCase();
@@ -45,36 +42,55 @@ export default function RequestAccessPage() {
       }
 
       if (sanitizedMatricula) {
-        const userCheck = await getDocs(query(collection(db, 'users'), where('matricula', '==', sanitizedMatricula)));
-        if (!userCheck.empty) {
+        // 1. Validar si ya existe el usuario registrado en Supabase (Tabla: 'users')
+        const { data: userCheck, error: userError } = await supabase
+          .from('users')
+          .select('matricula')
+          .eq('matricula', sanitizedMatricula);
+
+        if (userError) throw userError;
+        if (userCheck && userCheck.length > 0) {
           throw new Error('Ya existe un usuario registrado con esta matrícula.');
         }
         
-        const reqCheck = await getDocs(query(collection(db, 'requests'), 
-          where('matricula', '==', sanitizedMatricula),
-          where('status', '==', 'PENDING')
-        ));
-        if (!reqCheck.empty) {
+        // 2. Validar si ya existe una solicitud pendiente en Supabase (Tabla: 'requests')
+        const { data: reqCheck, error: reqError } = await supabase
+          .from('requests')
+          .select('matricula, status')
+          .eq('matricula', sanitizedMatricula)
+          .eq('status', 'PENDING');
+
+        if (reqError) throw reqError;
+        if (reqCheck && reqCheck.length > 0) {
           throw new Error('Ya tienes una solicitud pendiente con esta matrícula.');
         }
       }
 
+      // Preparar la estructura de datos sanitizada mapeando las columnas
       const sanitizedData = {
-        ...formData,
         name: formData.name.trim().toUpperCase(),
-        lastName: formData.lastName.trim().toUpperCase(),
-        motherLastName: formData.motherLastName.trim().toUpperCase(),
+        last_name: formData.lastName.trim().toUpperCase(), // Ajustado a snake_case para Postgres estándar
+        mother_last_name: formData.motherLastName.trim().toUpperCase(), // Ajustado a snake_case
         matricula: sanitizedMatricula || null,
+        subject_id: formData.subjectId || null, // Ajustado a snake_case
+        group_id: formData.groupId || null, // Ajustado a snake_case
+        role: formData.role,
         email: sanitizedEmail || null,
         status: 'PENDING',
-        createdAt: Date.now()
+        created_at: new Date().toISOString() // Estándar timestamp de Supabase/PostgreSQL
       };
       
-      await addDoc(collection(db, 'requests'), sanitizedData);
+      // 3. Insertar la solicitud en la tabla 'requests' de Supabase
+      const { error: insertError } = await supabase
+        .from('requests')
+        .insert([sanitizedData]);
+
+      if (insertError) throw insertError;
+
       setSubmitted(true);
     } catch (error: any) {
       errorService.handle(error, 'Request Access');
-    } finally {
+    } compression: finally {
       setLoading(false);
     }
   };
@@ -156,7 +172,7 @@ export default function RequestAccessPage() {
                          className="bg-black/40 border-white/10 uppercase italic font-bold text-neon-blue h-12 focus:border-neon-blue transition-all" 
                        />
                     </div>
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 space-y-2">
                        <label className="text-[10px] font-black uppercase tracking-widest ml-1 opacity-50 flex items-center gap-2">
                          <FileText className="w-3 h-3" /> Matrícula / Control
                        </label>
@@ -277,7 +293,7 @@ export default function RequestAccessPage() {
                     <Button 
                       type="submit" 
                       disabled={loading} 
-                      className="w-full bg-neon-blue text-black font-black uppercase italic italic h-14 shadow-[0_0_25px_rgba(0,243,255,0.3)] hover:shadow-[0_0_35px_rgba(0,243,255,0.5)] transition-all flex items-center justify-center gap-3"
+                      className="w-full bg-neon-blue text-black font-black uppercase italic h-14 shadow-[0_0_25px_rgba(0,243,255,0.3)] hover:shadow-[0_0_35px_rgba(0,243,255,0.5)] transition-all flex items-center justify-center gap-3"
                     >
                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                          <>
