@@ -2,11 +2,11 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/assets/(.*)",
-      "destination": "/assets/$1"
+      "source": "/static/(.*)",
+      "destination": "/static/$1"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!static/).*)",
       "destination": "/index.html"
     }
   ]
