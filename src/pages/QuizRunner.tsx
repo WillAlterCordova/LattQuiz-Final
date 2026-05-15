@@ -16,7 +16,7 @@ import { supabase } from '../lib/supabase';
 import { errorService } from '../services/errorService';
 import { generateQuestionsAI, generateFeedbackAI } from '../services/aiService';
 import { notify } from '../components/NeonNotification';
-import { WILDCARDS, WildcardType } from '../components/WildcardSystem';
+import { WILDCARDS, WildcardType } from '../components/WildcardSystem.tsx';
 import 'katex/dist/katex.min.css';
 // @ts-ignore
 import { InlineMath } from 'react-katex';
